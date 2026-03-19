@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アフィリ記事プロンプトジェネレーター</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #faf7f2;
+    --surface: #fff;
+    --card: #fffdf9;
+    --ink: #1a1510;
+    --muted: #8a7f72;
+    --border: #e8e0d4;
+    --accent: #c84b00;
+    --accent-light: #fff0e8;
+    --accent2: #2a5f3f;
+    --accent2-light: #eaf4ee;
+    --stamp: #c84b00;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Serif JP', serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* Texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23faf7f2'/%3E%3Ccircle cx='1' cy='1' r='0.5' fill='%23e8e0d4' opacity='0.4'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    position: relative;
+  }
+
+  .header-rule {
+    width: 60px;
+    height: 3px;
+    background: var(--accent);
+    margin: 0 auto 20px;
+  }
+
+  .eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: clamp(26px, 4.5vw, 42px);
+    font-weight: 900;
+    line-height: 1.3;
+    letter-spacing: -0.5px;
+    color: var(--ink);
+  }
+
+  h1 em {
+    font-style: normal;
+    color: var(--accent);
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 2px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  /* Step indicator */
+  .steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 36px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+  }
+
+  .step.active { color: var(--accent); }
+
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .step.active .step-num {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .step-line {
+    width: 32px;
+    height: 1px;
+    background: var(--border);
+    margin: 0 6px;
+  }
+
+  /* Form card */
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px;
+    margin-bottom: 20px;
+    box-shadow: 4px 4px 0 var(--border);
+    position: relative;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field { margin-bottom: 18px; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  input, textarea, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--ink);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 14px;
+    padding: 10px 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(200,75,0,0.08);
+    background: #fff;
+  }
+
+  textarea { resize: vertical; min-height: 80px; line-height: 1.7; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+
+  /* Tone chips */
+  .tone-group { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  .tone-chip {
+    padding: 6px 14px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-family: 'Noto Serif JP', serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--bg);
+    color: var(--muted);
+    user-select: none;
+  }
+
+  .tone-chip.active {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* Button */
+  .btn {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid var(--ink);
+    border-radius: 3px;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    box-shadow: 3px 3px 0 var(--accent);
+  }
+
+  .btn:hover:not(:disabled) {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--accent);
+  }
+
+  .btn:active:not(:disabled) {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 var(--accent);
+  }
+
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Result */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    display: none;
+    box-shadow: 4px 4px 0 var(--accent);
+    animation: fadeUp 0.35s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card.visible { display: block; }
+
+  .result-header {
+    padding: 14px 24px;
+    background: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .result-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--bg);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .copy-btn {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 2px;
+    font-size: 12px;
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .copy-btn:hover { opacity: 0.85; }
+
+  /* How to use box */
+  .how-to {
+    background: var(--accent2-light);
+    border-left: 3px solid var(--accent2);
+    padding: 14px 18px;
+    margin: 0 24px;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .how-to-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .how-to ol {
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 2;
+    color: var(--ink);
+  }
+
+  .service-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 24px 0;
+  }
+
+  .service-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 12px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--bg);
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+
+  .service-link:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .prompt-box {
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--ink);
+    border-top: 1px solid var(--border);
+    font-family: 'Noto Serif JP', serif;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+
+  .error-msg {
+    background: #fff0ee;
+    border: 1px solid #ffccc5;
+    color: #c84b00;
+    border-radius: 3px;
+    padding: 10px 14px;
+    font-size: 13px;
+    display: none;
+    margin-top: 10px;
+  }
+
+  .error-msg.visible { display: block; }
+
+  /* stamp decoration */
+  .stamp {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border: 2.5px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+    line-height: 1.4;
+    transform: rotate(12deg);
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-rule"></div>
+    <div class="eyebrow">Affiliate Tool</div>
+    <h1>アフィリ記事<br><em>プロンプト</em>ジェネレーター</h1>
+    <p class="subtitle">情報を入れるだけで、AIに渡すプロンプトが完成。<br>ChatGPTやClaudeに貼り付けて記事を生成しよう。</p>
+  </header>
+
+  <div class="steps">
+    <div class="step active">
+      <div class="step-num">1</div>
+      <span>情報入力</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step active">
+      <div class="step-num">2</div>
+      <span>生成</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <span>AIに貼付</span>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="stamp">FREE<br>TOOL</div>
+    <div class="section-title">商品情報を入力</div>
+
+    <div class="field">
+      <label>商品・サービス名 *</label>
+      <input type="text" id="product" placeholder="例：ChatGPT Plus、〇〇副業講座、ウォーターサーバー" />
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>ターゲット読者</label>
+        <select id="target">
+          <option value="副業初心者">副業初心者</option>
+          <option value="AIに興味ある会社員">AIに興味ある会社員</option>
+          <option value="フリーランス志望">フリーランス志望</option>
+          <option value="主婦・主夫">主婦・主夫</option>
+          <option value="20〜30代の転職検討中">20〜30代の転職検討中</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>記事の長さ</label>
+        <select id="length">
+          <option value="500">短め（500字・SNS向け）</option>
+          <option value="1000" selected>普通（1000字・ブログ向け）</option>
+          <option value="1500">長め（1500字・note向け）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>商品の特徴・売りポイント</label>
+      <textarea id="features" placeholder="例：月額2,000円で使い放題、初心者でも使える、返金保証あり"></textarea>
+    </div>
+
+    <div class="field">
+      <label>アフィリリンクURL *</label>
+      <input type="text" id="afflink" placeholder="https://..." />
+    </div>
+
+    <div class="field">
+      <label>文章のトーン</label>
+      <div class="tone-group">
+        <div class="tone-chip active" data-tone="体験談風・リアル">体験談風・リアル</div>
+        <div class="tone-chip" data-tone="論理的・解説系">論理的・解説系</div>
+        <div class="tone-chip" data-tone="ゆるい・友達口調">ゆるい・友達口調</div>
+        <div class="tone-chip" data-tone="煽り気味・刺さる系">煽り気味・刺さる系</div>
+        <div class="tone-chip" data-tone="丁寧・信頼感重視">丁寧・信頼感重視</div>
+      </div>
+    </div>
+
+    <button class="btn" id="generateBtn" onclick="generate()">
+      ✦ プロンプトを生成する
+    </button>
+
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <span class="result-label">Generated Prompt</span>
+      <button class="copy-btn" onclick="copyPrompt()">📋 コピー</button>
+    </div>
+
+    <div class="how-to" style="margin-top:20px;">
+      <div class="how-to-title">▶ 使い方</div>
+      <ol>
+        <li>下のプロンプトを「コピー」ボタンでコピー</li>
+        <li>ChatGPT・Claude・Geminiを開く</li>
+        <li>そのまま貼り付けて送信するだけ！</li>
+      </ol>
+    </div>
+
+    <div class="service-links">
+      <a class="service-link" href="https://chat.openai.com" target="_blank">🤖 ChatGPTを開く</a>
+      <a class="service-link" href="https://claude.ai" target="_blank">✦ Claudeを開く</a>
+      <a class="service-link" href="https://gemini.google.com" target="_blank">💎 Geminiを開く</a>
+    </div>
+
+    <div class="prompt-box" id="promptBox"></div>
+  </div>
+
+</div>
+
+<script>
+  let selectedTone = '体験談風・リアル';
+
+  document.querySelectorAll('.tone-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.tone-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      selectedTone = chip.dataset.tone;
+    });
+  });
+
+  function generate() {
+    const product = document.getElementById('product').value.trim();
+    const target = document.getElementById('target').value;
+    const features = document.getElementById('features').value.trim();
+    const afflink = document.getElementById('afflink').value.trim();
+    const length = document.getElementById('length').value;
+    const errorMsg = document.getElementById('errorMsg');
+
+    errorMsg.classList.remove('visible');
+
+    if (!product) { showError('商品名を入力してください'); return; }
+    if (!afflink) { showError('アフィリリンクを入力してください'); return; }
+
+    const prompt = buildPrompt(product, target, features, afflink, length);
+
+    document.getElementById('promptBox').textContent = prompt;
+    document.getElementById('resultCard').classList.add('visible');
+    document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function buildPrompt(product, target, features, afflink, length) {
+    const toneGuide = {
+      '体験談風・リアル': `・自分が実際に使ったような一人称の体験談スタイルで書く\n・「最初は半信半疑だったけど…」「使ってみてびっくりした」など、リアルな感情の変化を入れる\n・完璧すぎず、少し迷いや葛藤も入れると信頼感が増す`,
+      '論理的・解説系': `・問題提起→原因分析→解決策の順番で論理的に展開する\n・数字やデータを積極的に使う（例：「月2,580円 = 1日86円」など）\n・読者が納得して動けるよう、根拠を丁寧に示す`,
+      'ゆるい・友達口調': `・「ねえ知ってる？」「これ、まじでよかったんだけど」など、友達に話すような自然な口調\n・難しい言葉は使わず、とにかく読みやすく\n・絵文字や「！」を適度に使ってテンポよく`,
+      '煽り気味・刺さる系': `・冒頭から「まだ〇〇してないの？」「正直に言う」などの掴みで始める\n・読者の危機感や焦りを刺激しつつ、解決策として商品を提示\n・「今すぐ」「限定」「知らないと損」などの言葉を効果的に使う`,
+      '丁寧・信頼感重視': `・丁寧な敬語で、落ち着いたトーンを維持する\n・商品のデメリットや注意点も正直に書いて、信頼感を高める\n・「〜かもしれません」「〜と感じました」など断定を避けた柔らかい表現を使う`,
+    };
+
+    return `# アフィリエイト記事作成プロンプト
+
+あなたはアフィリエイトマーケティングの専門ライターです。
+以下の情報をもとに、読者の心に刺さる自然なアフィリエイト記事を書いてください。
+
+---
+
+## 商品情報
+
+- **商品・サービス名**：${product}
+- **ターゲット読者**：${target}
+- **特徴・売りポイント**：${features || '（一般的な特徴・メリットを想定して書いてください）'}
+- **アフィリリンク**：${afflink}
+
+---
+
+## 記事の条件
+
+- **文字数**：${length}字程度
+- **文章トーン**：${selectedTone}
+
+### トーンの詳細指示
+${toneGuide[selectedTone]}
+
+---
+
+## 構成・ルール
+
+1. **タイトル**から書き始める（魅力的なタイトルを考える）
+2. **冒頭**で読者の悩みや共感ポイントを引き出す
+3. **本文**で商品の価値を自然に伝える
+4. アフィリリンク（${afflink}）を記事の中に**1〜2回**、自然な形で埋め込む
+   - 例：[▶ 詳しくはこちら](${afflink})
+   - 例：[無料で試してみる](${afflink})
+5. **最後**に読者が行動したくなるCTA（call to action）で締める
+6. 押し付けがましくなく、読者ファーストで書く
+7. マークダウン形式（# 見出し、## 小見出し）で書く
+
+---
+
+それでは記事を書いてください。`;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function copyPrompt() {
+    const text = document.getElementById('promptBox').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✓ コピーしました！';
+      setTimeout(() => btn.textContent = '📋 コピー', 2500);
+    });
+  }
+</script>
+</body>
+</html>
